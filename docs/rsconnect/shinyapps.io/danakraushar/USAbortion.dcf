@@ -1,0 +1,13 @@
+name: USAbortion
+title: USAbortion
+username:
+account: danakraushar
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 334513
+bundleId: 1356864
+url: https://danakraushar.shinyapps.io/USAbortion/
+when: 1525483346.62794
+asMultiple: FALSE
+asStatic: FALSE
+ignoredFiles: visualizations/Beiers.Rmd|visualizations/Kim.Rmd|visualizations/Kraushar.Rmd|visualizations/Smith.Rmd

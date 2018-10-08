@@ -1,0 +1,245 @@
+---
+title: "Abortion Maps"
+author: "Nicole Smith"
+date: "4/24/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+
+setwd("~/Documents/GitHub/GroupA_WomensHealth/docs/visualizations")
+```
+
+```{r, eval = FALSE}
+clinics <- read_csv("../data/clinics.csv")
+
+library(ggmap)
+register_google(key = Sys.getenv("GOOGLE_MAPS_API_KEY"))
+
+address <- str_c(str_to_title(clinics$Address),
+                 str_to_title(clinics$City),
+                 str_to_title(clinics$STATE), 
+                 sep = ", ")
+
+latlong <- geocode(address, output = c("latlon"))
+
+clinics$latitude <- latlong$lat
+clinics$longitude <- latlong$lon
+
+#write_csv(clinics, "../clinics_latlong.csv")
+```
+
+
+```{r}
+clinics <- read_csv("../../data/clinics_latlong.csv")
+
+clinics <- clinics %>% 
+  filter(is.na(longitude) == FALSE) # Remove two observations that could not be geocoded because the addresses were hidden to protect women; both were in cities that had other abortion clinics
+#save(clinics, file = "../data/clinics.RData")
+```
+
+```{r}
+library(rgdal)
+
+counties <- readOGR(dsn ="../../data/shapefiles", layer = "counties_wgs84")
+
+centroids <- readOGR(dsn = "../../data/shapefiles", layer = "centroids_wgs84")
+
+centroids@data <- centroids@data %>% 
+  filter(is.na(xcoord) == FALSE) # some islands in Hawaii and Alaska don't have coordinates because the centroid is on the edge of the county line; these were removed
+```
+
+```{r}
+library(geosphere)
+
+x <- cbind(centroids$xcoord, centroids$ycoord)
+y <- cbind(clinics$longitude, clinics$latitude)
+dist <- distm(x, y)
+
+min_dist <- apply(dist, 1, min, na.rm = TRUE) # calculate closest clinic
+
+distance <- cbind(centroids@data, min_dist) %>% 
+  mutate(dist_miles = min_dist/1609.344) # convert meters to miles
+
+counties@data <- distance # put into shapefile
+#save(counties, file = "../data/counties.RData")
+#save(centroids, file = "../data/centroids.RData")
+```
+
+```{r}
+library(leaflet)
+
+pal <- colorBin(palette = c("#810f7c",'484848'),
+                domain = counties$dist_miles,
+                bins = c(0, 50))
+
+labels_drive <- sprintf(
+        "Clinic: %s <br/> City: %s ",
+        clinics$Provider, clinics$City) %>% lapply(htmltools::HTML)
+
+leaflet(width = "100%",
+        options = leafletOptions(minZoom = 3)) %>%
+  setView(lng = -96, lat = 38, zoom = 4) %>%
+  addProviderTiles("Stamen.TonerBackground", group = "Simple") %>% 
+  addPolygons(data = counties, stroke = FALSE,
+              fillColor = ~pal(counties$dist_miles),
+              fillOpacity = 0.8,
+              weight = 1,
+              group = "Driving Distances") %>% 
+  addCircleMarkers(data = clinics, radius = 1.5, stroke = FALSE, fillOpacity = 0.5, color = "purple", group = "Clinics",
+              label = labels_drive, 
+              labelOptions = labelOptions(
+                style = list("font-weight" = "normal", padding = "3px 8px"),
+                textsize = "15px",
+                directions = "auto")) %>% 
+  addCircleMarkers(data = x, radius = 1.5, stroke = FALSE, fillOpacity = 0.5, color = "black", group = "Centroids") %>% 
+  addLayersControl(
+    baseGroups = c("Simple"),
+    overlayGroups = c("Driving Distances", "Clinics", "Centroids"),
+    options = layersControlOptions(collapsed = TRUE)
+  )
+```
+
+
+
+```{r, warning=FALSE}
+library(readtext)
+library(qdap)
+library(tidyr)
+library(tidytext)
+library(wordcloud)
+library(tm)
+```
+
+
+```{r}
+#reading from directory (replace with your path)
+abortion_pamp <- readtext(paste0("/Users/Nicole/Documents/GitHub/GroupA_WomensHealth/data/text_data"))
+abortion_pamp$text <- str_replace_all(abortion_pamp$text, "[^[:alnum:]]", " ")
+
+#cleaning up text
+abortion_pamp$text <- replace_abbreviation(abortion_pamp$text)
+abortion_pamp$text <- replace_contraction(abortion_pamp$text)
+abortion_pamp$text <- tolower(abortion_pamp$text)
+abortion_pamp$text <- removeWords(abortion_pamp$text, c(stopwords("en")))
+
+abortion_pamp$doc_id[str_detect(abortion_pamp$doc_id, "Antiabortion")] <- "Pro-life"
+abortion_pamp$doc_id[str_detect(abortion_pamp$doc_id, "choice")] <- "Pro-choice"
+abortion_pamp <- abortion_pamp %>% unnest_tokens(word, text)
+abortion_pamp <- abortion_pamp[nchar(abortion_pamp$word) > 2, ]
+
+abortion_pamp$word[abortion_pamp$word == "women"] <- "woman"
+abortion_pamp$word[abortion_pamp$word == "laws"] <- "law"
+abortion_pamp$word[abortion_pamp$word == "states"] <- "state"
+abortion_pamp$word[abortion_pamp$word == "abortions"] <- "abortion"
+abortion_pamp$word[abortion_pamp$word == "babies"] <- "baby"
+abortion_pamp$word[abortion_pamp$word == "clinics"] <- "clinic"
+abortion_pamp$word[abortion_pamp$word == "rights"] <- "right"
+abortion_pamp$word[abortion_pamp$word == "lives"] <- "life"
+abortion_pamp$word[abortion_pamp$word == "decisions"] <- "decision"
+abortion_pamp$word[abortion_pamp$word == "medications"] <- "medication"
+abortion_pamp$word[abortion_pamp$word == "doctors"] <- "doctor"
+abortion_pamp$word[abortion_pamp$word == "week"] <- "weeks"
+abortion_pamp$word[abortion_pamp$word == "centers"] <- "center"
+abortion_pamp$word[abortion_pamp$word == "children"] <- "child"
+abortion_pamp$word[abortion_pamp$word == "fetuses"] <- "fetus"
+abortion_pamp$word[abortion_pamp$word == "performed"] <- "perform"
+abortion_pamp$word[abortion_pamp$word == "performing"] <- "perform"
+abortion_pamp$word[abortion_pamp$word == "performs"] <- "perform"
+abortion_pamp$word[abortion_pamp$word == "pills"] <- "pill"
+abortion_pamp$word[abortion_pamp$word == "mothers"] <- "mother"
+abortion_pamp$word[abortion_pamp$word == "day"] <- "days"
+
+abortion_pamp <- abortion_pamp %>% group_by(doc_id) %>% count(word) %>% arrange(desc(n))
+```
+
+
+```{r}
+
+top25_pc <- abortion_pamp %>% 
+  filter(word == "abortion" | word == "woman" | word == "health" | word == "state" | word == "law" | word == "right" | word == "pregnancy" | word == "care" | word == "court" | word == "access" | word == "center" | word == "services" | word == "life" | word == "reproductive" | word == "doctor" | word == "decision" | word == "clinic" | word == "medical" | word == "weeks" | word == "legal" | word == "medication" | word == "pill" | word == "people" | word == "safe" | word == "restrictions" ) 
+
+top25_pc$n <- ifelse(top25_pc$doc_id == "Pro-choice",
+                          top25_pc$n ,top25_pc$n*-1)
+
+#save(top25_pc, file = "../data/top25_pc.RData")
+
+top25_pl <- abortion_pamp %>% 
+  filter(word == "abortion" | word == "life" | word == "woman" | word == "baby" | word == "weeks" | word == "human" | word == "child" | word == "pregnancy" | word == "state" | word == "one" | word == "days" | word == "pill" | word == "fetus" | word == "mother" | word == "uterus" | word == "perform" | word == "law" | word == "united" | word == "first" | word == "medical" | word == "death" | word == "birth" | word == "right" | word == "486" | word == "unborn" ) 
+## note 486 is the name of a medication
+
+top25_pl$n <- ifelse(top25_pl$doc_id == "Pro-choice",
+                          top25_pl$n ,top25_pl$n*-1)
+
+#save(top25_pl, file = "../data/top25_pl.RData")
+
+ggplot(top25_pl, aes(x = reorder(word, n), y = n, fill = doc_id)) +
+  geom_bar(data = filter(top25_pl, doc_id == "Pro-choice"), stat = "identity") +
+  geom_bar(data = filter(top25_pl, doc_id == "Pro-life"), stat = "identity") +
+  scale_fill_brewer(direction = -1) +
+  scale_fill_manual(values = c("#8c96c6", "#810f7c")) +
+  labs(x = "", y = "", title = "Frequency of Top 25 Words", subtitle = "Comparison of Pro-Life and Pro-Choice Organizations") +
+  coord_flip() +
+  theme(axis.ticks = element_blank(),
+        legend.title = element_blank())
+```
+
+
+
+
+```{r}
+library(DT)
+abortion_table <- read_csv("../data/Abortion_Table.csv")
+abortion_guttmacher <- read_csv("../data/abortion_guttmacher.csv")
+abortion_mandate <- read_csv("../data/restrictions.csv")
+
+abortions <- merge(abortion_table, abortion_guttmacher, by.x = "State", by.y = "U.S. State")
+abortions <- merge(abortions, abortion_mandate, by.x = "State", by.y = "STATE")
+
+abortions$`Mandated counseling` <- ifelse(abortions$COUNSELING == 1, "X", "")
+
+abortions <- plyr::rename(abortions, c("Parental involvement requried for minors" = "Parental involvement required for minors"))
+
+abortions$`Prohibited except in cases of life or health endangerment: ` 
+
+abortions_table <- abortions %>% 
+  select("State", "Abortion rate (the number of abortions per 1000 women aged 15-44) by state of occurrence: 2014", "Reported public expenditures for abortions (in 000s of dollars) state: 2010", "Prohibited except in cases of life or health endangerment:", "Providers may refuse to participate", "Mandated counseling", "Waiting period (in hours) after counseling", "Parental involvement required for minors")
+
+abortions_table$`Reported public expenditures for abortions (in 000s of dollars) state: 2010` <- ifelse(is.na(abortions_table$`Reported public expenditures for abortions (in 000s of dollars) state: 2010`) == TRUE, "No Reporting", abortions_table$`Reported public expenditures for abortions (in 000s of dollars) state: 2010`)
+
+abortions_table$`Prohibited except in cases of life or health endangerment:` <- ifelse(is.na(abortions_table$`Prohibited except in cases of life or health endangerment:`) == TRUE, "No Restrictions", abortions_table$`Prohibited except in cases of life or health endangerment:`)
+
+abortions_table$`Providers may refuse to participate` <- ifelse(is.na(abortions_table$`Providers may refuse to participate`) == TRUE, "No", "Yes")
+
+abortions_table$`Mandated counseling` <- ifelse(abortions_table$`Mandated counseling` == "X", "Yes", "No")
+
+abortions_table$`Waiting period (in hours) after counseling` <- ifelse(is.na(abortions_table$`Waiting period (in hours) after counseling`) == TRUE, "No Requirements", abortions_table$`Waiting period (in hours) after counseling`)
+
+abortions_table$`Parental involvement required for minors` <- ifelse(is.na(abortions_table$`Parental involvement required for minors`) == TRUE, "No Requirements", abortions_table$`Parental involvement required for minors`)
+
+#save(abortions_table, file = "../data/Abortion_Table.RData")
+
+
+options(DT.options = list(pageLength = 10, autoWidth = TRUE, columnDefs = list(list(width = '80px', targets = "_all"))))
+
+datatable(abortions_table, 
+          rownames = FALSE, 
+          filter = list(position = "top"), 
+          colnames = 
+            c("State", "Abortion Rate (per 1000 women: 15-44)", 
+              "Public Spending for Abortions (1000s)", 
+              "Abortions Prohibited After", 
+              "Can Insurance Providers Refuse to Participate?", 
+              "Is There Mandated Counseling?", 
+              "Waiting Period After Counseling (hours)", 
+              "Is Parental Involvement for Minors Required?"),
+          options = list(autoWidth = TRUE, 
+                         lengthMenu = c(10, 25, 50))) %>% 
+  formatStyle(1:8, color = "black", backgroundPosition = 'center')
+```
+

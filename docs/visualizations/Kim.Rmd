@@ -1,0 +1,255 @@
+---
+title: "TeamAbortion_Joo"
+author: "Joo Kim"
+date: "4/16/2018"
+output: html_document
+---
+
+```{r, message=FALSE, warning=FALSE}
+setwd("/GitHub/GroupA_WomensHealth/data/Raw data files")
+library(dplyr, quietly = TRUE)
+library(ggplot2, quietly = TRUE)
+library(ggthemes, quietly = TRUE)
+library(tidyr, quietly = TRUE)
+library(reshape2, quietly = TRUE)
+library(waffle, quietly = TRUE)
+
+rights_state <- read.csv("reprod_rights.csv")
+abortion <- read.csv("abortion_guttmacher.csv")
+pregnancies <- read.csv("Pregnancies_Guttmacher.csv")
+```
+
+# Data Wrangling 
+
+```{r}
+rights_state2 <- rights_state
+
+#Updating mandatory sex education variable
+rights_state2$Mandatory_Sexed <- as.character(rights_state2$Mandatory_Sexed)
+rights_state2$Mandatory_Sexed[rights_state2$Mandatory_Sexed == "0"] <- "No"
+rights_state2$Mandatory_Sexed[rights_state2$Mandatory_Sexed == "1"] <- "Yes"
+rights_state2$Mandatory_Sexed[rights_state2$Mandatory_Sexed == "0d"] <- "No"
+rights_state2$Mandatory_Sexed[rights_state2$Mandatory_Sexed == "1e"] <- "No"
+
+factor(rights_state2$Mandatory_Sexed, levels = c("Yes", "No"), ordered = TRUE)
+       
+
+#Updating counties provider variable 
+rights_state2$Percent_women_counties_providers <- as.character(rights_state2$Percent_women_counties_providers)
+rights_state2$Percent_women_counties_providers <- gsub("%", "", paste(rights_state2$Percent_women_counties_providers))
+rights_state2$Percent_women_counties_providers <- as.numeric(rights_state2$Percent_women_counties_providers)
+
+#Updating medicaid expansion variable
+rights_state2$Medicaid_family_planning_expansion <- as.character(rights_state2$Medicaid_family_planning_expansion)
+rights_state2$Medicaid_family_planning_expansion[rights_state2$Medicaid_family_planning_expansion == "0"] <- "No"
+rights_state2$Medicaid_family_planning_expansion[rights_state2$Medicaid_family_planning_expansion == "1"] <- "Yes"
+rights_state2$Medicaid_family_planning_expansion[rights_state2$Medicaid_family_planning_expansion == "1b"] <- "Yes"
+
+#renaming abortion data
+abortion <- abortion %>% rename(abortion_2014 = `Abortion.rate..the.number.of.abortions.per.1000.women.aged.15.44..by.state.of.residence..2013..1.2.3.`)
+abortion <- abortion %>% rename(Hispanic = `Abortion.rate..the.number.of.abortions.per.1000.Hispanic.women.aged.15.19..by.state.of.residence..2013`)
+abortion <- abortion %>% rename(Black = `Abortion.rate..the.number.of.abortions.per.1000.non.Hispanic.black.women.aged.15.19..by.state.of.residence..2013`)
+abortion <- abortion %>% rename(White = `Abortion.rate..the.number.of.abortions.per.1000.non.Hispanic.white.women.aged.15.19..by.state.of.residence..2013`)
+abortion <- abortion %>% rename(Other = `Abortion.rate..the.number.of.abortions.per.1000.other.non.Hispanic.women.aged.15.19..by.state.of.residence..2013..13.`)
+abortion <- abortion %>% rename(State = U.S..State)
+
+#subset
+abortion2 <- abortion[, c("State", "abortion_2014", "Hispanic", "Black", "White", "Other")]
+
+```
+
+## sex-ed vs. abortion rate (not in the shiny app)
+
+```{r}
+#combine datasets
+abortion_sexed <- inner_join(rights_state2, abortion2, by = "State")
+
+abortion_sexed <- abortion_sexed %>% 
+  rename(`Mandatory Sex Education by Law` = Mandatory_Sexed)
+
+ggplot(abortion_sexed, 
+       aes(x = `Mandatory Sex Education by Law`, y = abortion_2014, 
+           fill = `Mandatory Sex Education by Law`,
+           label = State)) + 
+  geom_boxplot() +
+  geom_point() +
+  geom_text(size = 2, angle = 40, hjust = -0.4) +
+  scale_fill_manual(values = c("#E6EDF2", "#320044")) +
+  theme_tufte() +
+  labs(x = "", y = "Abortion Rate per 1000")
+
+#library(plotly, quietly = TRUE)
+
+#plot_ly(x = ~abortion_sexed$`Mandatory Sex Education by Law`, 
+        #y = ~abortion_sexed$abortion_2014, 
+        #type = "box", boxpoints = "all", jitter = 0.3) 
+```
+
+#Abortion rate by race per state waffle chart
+
+```{r}
+abortion_waffle <- abortion %>% select(State, Black, Hispanic, White, Other)
+abortion_waffle <- na.omit(abortion_waffle)
+
+abortion_waffle <- abortion_waffle %>% 
+  gather(`Black`, `Hispanic`, `White`, `Other`, 
+         key = "race", value = "Number of Abortions")
+
+#save(abortion_waffle, file = "/Users/jookim/Documents/GitHub/TeamAbortion/data/abortion_waffle.RData")
+
+abortion_waffle <- abortion_waffle %>% 
+  mutate("All Pregnancies" = 1000 - `Number of Abortions`)
+
+save(abortion_waffle, file = "/Users/jookim/Documents/GitHub/TeamAbortion/data/abortion_waffle.RData")
+
+waffle_black <- abortion_waffle %>% 
+  select(State, Black) %>%
+  mutate(pregnancy = 1000 - Black)
+
+#save(waffle_black, file = "/Users/jookim/Documents/GitHub/TeamAbortion/data/waffle_black.RData")
+
+waffle_hispanic <- abortion_waffle %>%
+  select(State, Hispanic) %>%
+  mutate(pregnancy = 1000 - Hispanic)
+
+#save(waffle_hispanic, file = "/Users/jookim/Documents/GitHub/TeamAbortion/data/waffle_hispanic.RData")
+
+waffle_other <- abortion_waffle %>%
+  select(State, Other) %>%
+  mutate(pregnancy = 1000 - Other)
+
+#save(waffle_other, file = "/Users/jookim/Documents/GitHub/TeamAbortion/data/waffle_other.RData")
+
+waffle_white <- abortion_waffle %>%
+  select(State, White) %>%
+  mutate(pregnancy = 1000 - White)
+
+#save(waffle_white, file = "/Users/jookim/Documents/GitHub/TeamAbortion/data/waffle_white.RData")
+
+# select state 
+waf1 <- waffle(abortion_waffle2[10, 2:3], rows = 50,
+       colors = c("black", "gray"))
+waf2 <- waffle(abortion_waffle2[11, 2:3], rows = 50,
+               colors = c("black", "gray"))
+
+waf_b <- waffle(waffle_black[10, 2:3], rows = 50, colors = c("black", "gray"),
+                legend_pos = "below")
+
+iron(waf_b, waf_w)
+```
+
+# Abortion rate by race bar graph (not in shiny)
+
+```{r}
+abortion_race <- abortion %>% select(State, Black, Hispanic, White, Other)
+abortion_race <- abortion_race %>% gather(Black, Hispanic,
+                         White, Other,
+                         key = "race", value = "abortion_rate")
+abortion_race <- abortion_race %>% rename(`Abortion Rate per 1000` = abortion_rate)
+ustotal <- abortion_race %>% filter(State == "U.S. total")
+abortion_race <- na.omit(abortion_race)
+ustotal$State <- NULL
+ustotal$`Pregnancy Rate per 1000` <- c(73, 90, 93, 89)
+ustotal <- melt(ustotal)
+
+ggplot(ustotal, aes(x = "", y = value, fill = variable)) +
+  geom_bar(stat = "identity", width = 1, position = position_fill()) + 
+  coord_polar(theta = "y") + 
+  facet_wrap(~ race, ncol = 2) +
+  scale_fill_manual(values = c("#E6EDF2", "#320044")) +
+  theme_tufte() +
+  theme(panel.spacing = unit(0.5, "lines")) +
+  labs(title = "Abortion rate by race",
+       x = "",
+       y = "") +
+  theme(axis.line = element_blank(), axis.text.x=element_blank(),
+        axis.text.y=element_blank(), axis.ticks=element_blank(),
+        axis.title.x=element_blank(), axis.title.y=element_blank(),
+        legend.position = "non")
+```
+
+## Text analysis (word cloud)
+
+```{r, warning=FALSE}
+library(readtext)
+library(qdap)
+library(tidyr)
+library(tidytext)
+library(wordcloud)
+library(tm)
+
+#reading from directory (replace with your path)
+abortion_pamp <- readtext(paste0("/Users/jookim/Documents/GitHub/TeamAbortion/text_data"))
+abortion_pamp$text <- str_replace_all(abortion_pamp$text, "[^[:alnum:]]", " ")
+
+#cleaning up text
+abortion_pamp$text <- replace_abbreviation(abortion_pamp$text)
+abortion_pamp$text <- replace_contraction(abortion_pamp$text)
+abortion_pamp$text <- tolower(abortion_pamp$text)
+abortion_pamp$text <- removeWords(abortion_pamp$text, c(stopwords("en")))
+
+abortion_pamp$doc_id[str_detect(abortion_pamp$doc_id, "Antiabortion")] <- "Pro-life"
+abortion_pamp$doc_id[str_detect(abortion_pamp$doc_id, "choice")] <- "Pro-choice"
+abortion_pamp <- abortion_pamp %>% unnest_tokens(word, text)
+abortion_pamp <- abortion_pamp[nchar(abortion_pamp$word) > 2, ]
+
+abortion_pamp$word[abortion_pamp$word == "women"] <- "woman"
+abortion_pamp$word[abortion_pamp$word == "laws"] <- "law"
+abortion_pamp$word[abortion_pamp$word == "states"] <- "state"
+abortion_pamp$word[abortion_pamp$word == "abortions"] <- "abortion"
+abortion_pamp$word[abortion_pamp$word == "babies"] <- "baby"
+abortion_pamp$word[abortion_pamp$word == "clinics"] <- "clinic"
+abortion_pamp$word[abortion_pamp$word == "rights"] <- "right"
+abortion_pamp$word[abortion_pamp$word == "lives"] <- "life"
+abortion_pamp$word[abortion_pamp$word == "decisions"] <- "decision"
+abortion_pamp$word[abortion_pamp$word == "medications"] <- "medication"
+abortion_pamp$word[abortion_pamp$word == "doctors"] <- "doctor"
+abortion_pamp$word[abortion_pamp$word == "week"] <- "weeks"
+abortion_pamp$word[abortion_pamp$word == "centers"] <- "center"
+abortion_pamp$word[abortion_pamp$word == "children"] <- "child"
+abortion_pamp$word[abortion_pamp$word == "fetuses"] <- "fetus"
+abortion_pamp$word[abortion_pamp$word == "performed"] <- "perform"
+abortion_pamp$word[abortion_pamp$word == "performing"] <- "perform"
+abortion_pamp$word[abortion_pamp$word == "performs"] <- "perform"
+abortion_pamp$word[abortion_pamp$word == "pills"] <- "pill"
+abortion_pamp$word[abortion_pamp$word == "mothers"] <- "mother"
+abortion_pamp$word[abortion_pamp$word == "day"] <- "days"
+
+abortion_pamp <- abortion_pamp %>% group_by(doc_id) %>% count(word) %>% arrange(desc(n))
+
+pro_choice <- abortion_pamp %>% filter(doc_id == "Pro-choice")
+save(pro_choice, file = "/Users/jookim/Documents/GitHub/TeamAbortion/data/pro_choice.RData")
+
+pro_life <- abortion_pamp %>% filter(doc_id == "Pro-life")
+save(pro_life, file = "/Users/jookim/Documents/GitHub/TeamAbortion/data/pro_life.RData")
+
+
+layout(matrix(c(1, 2, 3, 4), 2, 2, byrow = FALSE), 
+             heights = c(1, 5))
+par(mar = rep(0, 4))
+plot.new()
+text(x = 0.5, y = 0.4, "Pro-Choice", col = "black", cex = 2)
+wordcloud(pro_choice$word, pro_choice$n, max.words = 30, 
+                colors = "#8c6bb1", scale = c(5, 2)) 
+plot.new()
+text(x = 0.5, y = 0.4, "Pro-Life", col = "white", font = 5)
+wordcloud(pro_life$word, pro_life$n, max.words = 30, 
+colors = "#E6EDF2", scale = c(5, 2))
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

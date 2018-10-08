@@ -1,0 +1,193 @@
+---
+title: ''
+author: "Sophie Beiers"
+date: "4/5/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+setwd("~/Documents/GitHub/GroupA_WomensHealth/docs")
+library(tidyverse)
+library(RColorBrewer)
+library(ggridges)
+```
+
+## Data
+```{r}
+teens <- read_csv("../data/teens_guttmacher.csv")
+reprod <- read_csv("../data/reprod_rights.csv")
+```
+
+## Analysis
+```{r}
+teens = dplyr::rename(teens, tot_abortion_rate = `Abortion rate (the number of abortions per 1000 women aged 15-17) by state of residence: 2013 [4]`, State = `U.S. State`, tot_birth_rate = `Birthrate (the number of births per 1000 women aged 15-17) by state of residence : 2013 [4]`, perc_end_abortion = `Percentage of teen pregnancies ending in abortion: 2011 [5]`, perc_end_birth = `Percentage of teen pregnancies ending in birth: 2011 [6]`)
+
+reprod$Grade <- factor(reprod$Grade, levels = c("A-", "B+", "B", "C+", "C", "C-", "D+", "D", "D-", "F"))
+
+combo <- merge(reprod, teens, by = "State")
+save(combo, file = "./data/combo.RData")
+```
+
+
+## Visualizations
+### Abortion Rate per 1000 Teens by "Grade"
+```{r}
+colors <- c( '#E6EDF2','#e0ecf4','#bfd3e6','#9ebcda','#8c96c6','#8c6bb1','#88419d','#810f7c','#4d004b', '#320044')
+ggplot(data = combo, aes(x = reorder(State, -Rank), y = tot_abortion_rate, fill = Grade)) +
+  geom_bar(stat = "identity") +
+  scale_fill_manual(values = rev(colors)) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+  labs(x = '', y = 'Abortion Rate per 1000') +
+  coord_flip()
+  
+  
+```
+
+### Birth Rate per 1000 Teens by "Grade"
+```{r}
+colors <- c( '#E6EDF2','#e0ecf4','#bfd3e6','#9ebcda','#8c96c6','#8c6bb1','#88419d','#810f7c','#4d004b','#320044')
+ggplot(data = combo, aes(x = reorder(State, Rank), y = tot_birth_rate, fill = Grade)) +
+  geom_bar(stat = "identity") +
+  scale_fill_manual(values = rev(colors)) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+  labs(x = '', y = 'Birth Rate per 1000')
+```
+```{r}
+## data manipulation for area charts
+test <- combo %>% 
+  select(State, Rank, Grade, tot_abortion_rate, tot_birth_rate) %>% 
+  gather("BirthAbortion", "Rate", 4:5)
+  
+test2 <- combo %>% 
+  select(State, Rank, Grade, perc_end_birth, perc_end_abortion) %>% 
+  gather("PercentBirthAbortion", "Perc", 4:5)
+
+area <- cbind(test, test2)
+area <- area[ -c(6:8) ]
+
+save(area, file = "./data/area.RData")
+```
+
+### Abortion v. Birth Rate/1000: Stacked Area
+```{r}
+ggplot(data = area, aes(x = Rank, y = Rate, fill = BirthAbortion)) +
+  geom_area(alpha = 0.8, color = 'white', size = 0.1) +
+  scale_fill_manual(values = c('#810f7c', "#4d004b"), 
+                    labels = c("Teen Abortion Rate/1000", "Teen Birth Rate/1000"),
+                    name = '') +
+  theme_void() +
+  theme(legend.position = c(0.8, 0.7))
+```
+
+### Abortion v. Birth Rate/1000 : Area plots on top of each other
+```{r}
+states <- combo %>% 
+  group_by(State) %>% 
+  arrange(Rank) %>% 
+  select(State)
+
+states <- states[["State"]]
+
+ggplot(data = area, aes(x = Rank, y = Rate, fill = BirthAbortion)) +
+  geom_area(data = filter(test, BirthAbortion == 'tot_birth_rate'),
+                          alpha = 0.8, color = 'white', size = 0.1) +
+  geom_area(data = filter(test, BirthAbortion == 'tot_abortion_rate'), 
+                          alpha = 0.6, color = 'white', size = 0.1) +
+  scale_fill_manual(values = c('#810f7c', "#4d004b"), 
+                    labels = c("Teen Abortion Rate/1000", "Teen Birth Rate/1000"),
+                    name = '') +
+  theme_minimal() +
+  scale_x_continuous(breaks = 0:50, labels = states) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  theme(legend.position = c(0.8, 0.8)) +
+  labs(x = '', y = '')
+  
+
+
+
+```
+
+## Percentage of Teenage Pregnancies ending in birth v. abortion 
+### Stacked Bar (fill)
+```{r}
+mean_birth <- area %>% 
+  filter(PercentBirthAbortion == "perc_end_birth") %>% 
+  summarize(mean = mean(Perc))
+
+## the mean abortion rate is 27.62% 
+## the mean birth rate is 72.37%
+
+ggplot(data = area, aes(x = Rank, y = Perc, fill = PercentBirthAbortion)) +
+  geom_area(alpha = 0.8, color = 'white', size = 0.1) +
+  geom_point(data = filter(test, State == 'New York' & PercentBirthAbortion == 'perc_end_birth'|
+                             State == 'Kentucky' & PercentBirthAbortion == 'perc_end_birth'|
+                             State == 'New Mexico' & PercentBirthAbortion == 'perc_end_birth'), 
+             color = 'white',
+             show.legend = 'F') +
+  scale_fill_manual(values = c('#810f7c', "#4d004b"), 
+                    labels = c("% Ending in Abortion", "% Ending in Births"),
+                    name = 'Teenage Pregnancies') +
+  annotate(geom = "text", x = 7, y = 37, 
+                  label = "New York", size = 3, color = 'white') +
+  annotate(geom = "text", x = 12, y = 84, 
+                  label = "New Mexico", size = 3, color = 'white') +
+  annotate(geom = "text", x = 32, y = 92, 
+                  label = "Kentucky", size = 3, color = 'white') +
+  annotate(geom = "text", x = 48, y = 53, 
+                  label = "50%", size = 4, color = 'white') +
+  annotate(geom = "text", x = 48, y = 75, 
+                  label = "Average % Ending in Birth", size = 4, color = 'white') +
+  geom_hline(yintercept = 72.37, linetype="dashed", color = "lightgrey") +
+  geom_hline(yintercept = 50, linetype="dashed", color = "lightgrey") +
+  theme_void() +
+  theme(legend.position = c(0.8, 0.3), 
+        legend.title = element_text(color = 'white'),
+        legend.text = element_text(color = 'white'))
+
+```
+
+```{r}
+ p <- ggplot(data = area, aes(x = Rank, y = Rate, fill = BirthAbortion))
+
+          p = p + geom_area(data = filter(area, BirthAbortion == 'tot_birth_rate'), 
+                    alpha = 0.5, color = 'white', size = 0.1, show_guide = FALSE) +
+          geom_area(data = filter(area, BirthAbortion == 'tot_abortion_rate'),
+                    alpha = 0.9, color = 'white', size = 0.1, show_guide = FALSE) +
+          geom_point(data = filter(area, BirthAbortion == 'tot_abortion_rate'), 
+                             color = "yellow", show_guide = FALSE) +
+            scale_fill_manual(values = c('#810f7c', "#4d004b"), 
+                          labels = c("Teen Abortion Rate/1000", "Teen Birth Rate/1000"),
+                          name = '') 
+        
+       
+          p = p + geom_area(data = filter(area, BirthAbortion == 'tot_abortion_rate'),
+                            alpha = 0.5, color = 'white', size = 0.1, show_guide = FALSE) +
+            geom_area(data = filter(area, BirthAbortion == 'tot_birth_rate'), 
+                            alpha = 0.9, color = 'white', size = 0.1, show_guide = FALSE) +
+            geom_point(data = filter(area, BirthAbortion == 'tot_birth_rate'), 
+                              color = "yellow", show_guide = FALSE) +
+             scale_fill_manual(values = c("#4d004b", '#810f7c'), 
+                          labels = c("Teen Abortion Rate/1000", "Teen Birth Rate/1000"),
+                          name = '') 
+            
+      
+
+        
+        p <- p + theme_minimal() +
+        scale_x_continuous(breaks = 0:50, labels = states) +
+        theme(legend.position = c(0.8, 0.8)) +
+        theme(axis.text.x = element_text(color = "white", face = "bold", angle = 90, hjust = 1),
+              panel.grid.major = element_blank(), 
+              panel.grid.minor = element_blank(),
+              legend.text = element_text(color = "white", face = "bold")) +
+        labs(x = '', y = '')
+
+      print(p)
+```
+
+
+
+

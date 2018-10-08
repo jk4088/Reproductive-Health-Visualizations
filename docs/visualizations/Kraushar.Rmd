@@ -1,0 +1,359 @@
+---
+title: ""
+author: "Dana Kraushar"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+setwd("~/Documents/QMSS_Spring/Data_Viz-Brambor/GroupA_WomensHealth/docs/visualizations")
+```
+
+```{r}
+library(tidyverse)
+library(leaflet)
+library(RColorBrewer)
+```
+
+## Data
+```{r, include=FALSE}
+reprod <- read_csv("../../data/Raw_data_files/reprod_rights.csv")
+abortion <- read_csv("../../data/Raw_data_files/abortion_guttmacher.csv")
+pregnancies <- read_csv("../../data/Raw_data_files/Pregnancies_Guttmacher.csv")
+contraception <- read_csv("../../data/Raw_data_files/contraception_guttmacher.csv")
+teens <- read_csv("../../data/Raw_data_files/teens_guttmacher.csv")
+state_laws <- read_csv("../../data/Raw_data_files/state_laws_cleaned.csv")
+```
+
+1983-2008 data from http://www.jstor.org.ezproxy.cul.columbia.edu/stable/23048833?pq-origsite=summon&seq=3#page_scan_tab_contents and 2009-2011 data from https://www.guttmacher.org/sites/default/files/pdfs/journals/psrh.46e0414.pdf
+```{r, include=FALSE}
+abortion_time <- tribble(
+  ~Year, ~Number, ~Rate,  ~Ratio,
+  1973, 744.6, 16.3, 19.3, 
+  1974, 898.6, 19.3, 22.0,
+  1975, 1034.2, 21.7, 24.9, 
+  1976, 1179.3, 24.2, 26.5, 
+  1977, 1316.7, 26.4, 28.6, 
+  1978, 1409.6, 27.7, 29.2, 
+  1979, 1497.7, 28.8, 29.6, 
+  1980, 1553.9, 29.3, 30.0, 
+  1981, 1577.3, 29.3, 30.1, 
+  1982, 1573.9, 28.8, 30.0, 
+  1983, 1575.0, 28.5, 30.4, 
+  1984, 1577.2, 28.1, 29.7, 
+  1985, 1588.6, 28.0, 29.7, 
+  1986, 1574.0, 27.4, 29.4, 
+  1987, 1559.1, 26.9, 28.8, 
+  1988, 1590.8, 27.3, 28.6, 
+  1989, 1566.9, 26.8, 27.5, 
+  1990, 1608.6, 27.4, 28.0, 
+  1991, 1556.5, 26.3, 27.4, 
+  1992, 1528.9, 25.7, 27.5, 
+  1993, 1495.0, 25.0, 27.4, 
+  1994, 1423.0, 23.7, 26.6, 
+  1995, 1359.4, 22.5, 25.9, 
+  1996, 1360.2, 22.4, 25.9, 
+  1997, 1335.0, 21.9, 25.5, 
+  1998, 1319.0, 21.5, 25.1, 
+  1999, 1314.8, 21.4, 24.6, 
+  2000, 1313.0, 21.3, 24.5, 
+  2001, 1291.0, 20.9, 24.4, 
+  2002, 1269.0, 20.5, 23.8, 
+  2003, 1250.0, 20.2, 23.3, 
+  2004, 1222.1, 19.7, 22.9, 
+  2005, 1206.2, 19.4, 22.4, 
+  2006, 1242.2, 19.9, 22.9, 
+  2007, 1209.6, 19.5, 21.9, 
+  2008, 1212.4, 19.6, 22.4, 
+  2009, 1151.6, 18.5, 22.2, 
+  2010, 1102.7, 17.7, 21.7, 
+  2011, 1058.5, 16.9, 21.2
+)
+```
+
+```{r, include=FALSE}
+# write_csv(abortion_time, path = "../data/abortion_over_time.csv")
+```
+
+
+## Line chart of abortion rate over time
+```{r}
+library(plotly)
+
+roe_rate <- 19.3
+roe_ratio <- 16.3
+
+ggplot(data = abortion_time, aes(x=Year)) +
+  geom_line(aes(y = Rate), color = '#8c6bb1', size=2) +
+  geom_line(aes(y = Ratio), color = '#bfd3e6', size=2) +
+  theme_minimal() +
+  ylim(0, 35) +
+  # annotate(geom = "text", x = 1981, y = 20,
+  #                 label = "Ratio at time of Roe v. Wade (1973)", size = 3, color = 'darkgrey') +
+  # annotate(geom = "text", x = 1977.2, y = 17,
+  #                 label = "Rate in 1973", size = 3, color = 'darkgrey') +
+  geom_hline(yintercept = roe_rate, linetype="dashed", color = "darkgrey") +
+  # geom_text(data=data.frame(x=0,y=h), aes(x, y), label=h, vjust=-1)
+  geom_hline(yintercept = roe_ratio, linetype="dotted", color = "darkgrey") +
+#  annotate(geom="text", label="Rate at time of Roe v. Wade", x = 1973, y=roe_rate) +
+#  geom_text(aes(0,roe_ratio,label = roe_ratio, vjust = -1)) +
+  labs(y = "Abortions per 1,000 Women") + 
+  theme(legend.position = c(0.8, 0.3), 
+        legend.title = element_blank(),
+        legend.text = element_text(color = 'black'), 
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(vjust = 1)) +
+  scale_x_continuous(limits = c(1973, 2011), breaks = c(1975, 1980, 1985, 1990, 1995, 2000, 2005, 2010)) +
+  scale_color_hue(labels = c("Rate (per 1,000 women aged 15-44 years)", 
+                             "Ratio (per 1,000 live births)"))
+
+library(plotly)
+
+plotly_test <- ggplot(data = abortion_time, aes(x=Year)) +
+  geom_line(aes(y = Rate), color = '#8c6bb1', size=2) +
+  geom_line(aes(y = Ratio), color = '#bfd3e6', size=2) +
+  theme_minimal() +
+  ylim(0, 35) +
+  # annotate(geom = "text", x = 1981, y = 20,
+  #                 label = "Ratio at time of Roe v. Wade (1973)", size = 3, color = 'darkgrey') +
+  # annotate(geom = "text", x = 1977.2, y = 17,
+  #                 label = "Rate in 1973", size = 3, color = 'darkgrey') +
+  geom_hline(yintercept = roe_rate, linetype="dashed", color = "darkgrey") +
+  # geom_text(data=data.frame(x=0,y=h), aes(x, y), label=h, vjust=-1)
+  geom_hline(yintercept = roe_ratio, linetype="dotted", color = "darkgrey") +
+#  annotate(geom="text", label="Rate at time of Roe v. Wade", x = 1973, y=roe_rate) +
+#  geom_text(aes(0,roe_ratio,label = roe_ratio, vjust = -1)) +
+  labs(y = "Abortions per 1,000 Women") + 
+  theme(legend.position = c(0.8, 0.3), 
+        legend.title = element_blank(),
+        legend.text = element_text(color = 'black'), 
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(vjust = 1)) +
+  scale_x_continuous(limits = c(1973, 2011), breaks = c(1975, 1980, 1985, 1990, 1995, 2000, 2005, 2010)) +
+  scale_color_hue(labels = c("Rate (per 1,000 women aged 15-44 years)", 
+                             "Ratio (per 1,000 live births)"))
+
+ggplotly(plotly_test)
+```
+
+## continue cleaning state_laws.csv
+
+```{r, evaluate=FALSE}
+state_laws_USE <- read_csv("../../data/Raw_data_files/state_laws_cleaned-USE.csv") # fix previous error
+state_laws_USE <- state_laws_USE %>% drop_na(State)
+dim(state_laws_USE)
+
+state_laws_USE$prohibited_after <- ifelse(state_laws_USE$`Prohibited except in cases of life or health endangerment if at week` == "0", 
+                                          "(no prohibition)", 
+                                      ifelse(state_laws_USE$`Prohibited except in cases of life or health endangerment if at week` == "1",
+                                            "viability", 
+                                      ifelse(state_laws_USE$`Prohibited except in cases of life or health endangerment if at week` == "20", 
+                                             "20 weeks", 
+                                      ifelse(state_laws_USE$`Prohibited except in cases of life or health endangerment if at week` == "24", 
+                                             "24 weeks", 
+                                      "28 weeks"))))
+state_laws_USE$licensed_physician <- ifelse(state_laws_USE$`Must be performed by licensed physician` == "1", "Yes", "No")
+
+write_csv(state_laws_USE, path = "../data/Raw_data_files/state_laws_cleaned2.csv")
+```
+
+```{r, include=FALSE}
+state_laws <- read_csv("../data/Raw_data_files/state_laws_cleaned2.csv")
+
+state_laws %>% names
+
+table(state_laws$prohibited_after)
+class(state_laws$prohibited_after)
+```
+
+
+```{r, include=FALSE}
+# library(tmap)
+library(rgdal)
+
+us_map <- readOGR("../data/cb_2017_us_state_500k/.", "cb_2017_us_state_500k")
+us_map <- spTransform(us_map, CRS("+proj=longlat +datum=WGS84"))
+
+
+# Subset to only include 50 states + DC
+us_map <- us_map[!us_map$NAME %in% c("Guam", "Commonwealth of the Northern Mariana Islands", "American Samoa", 
+                                     "Puerto Rico", "United States Virgin Islands"), ]
+
+
+# coerce join field to be factors
+state_laws$State <- as.factor(state_laws$State)
+abortion$`U.S. State` <- as.factor(abortion$`U.S. State`)
+
+# merge state_laws with abortion data
+abortion <- abortion %>% filter(!`U.S. State` == "U.S. total")
+state_laws$State_name <- abortion$`U.S. State`
+
+abortion2 <- abortion %>% 
+              rename(abortion_rate = `Abortion rate (the number of abortions per 1000 women aged 15-44) by state of occurrence: 2014`)
+
+state_laws_w_abortion <- state_laws %>% 
+  left_join(abortion2, by = c("State_name" = "U.S. State"))
+
+# Merge state_laws with state boundaries shapefile
+state_laws_spatial <- us_map@data %>% 
+  left_join(state_laws_w_abortion, by = c("STUSPS" = "State"))
+us_map@data <- state_laws_spatial
+```
+
+```{r, width = 40, height = 50}
+pal2 <- colorNumeric(
+          palette = c( '#E6EDF2','#e0ecf4','#bfd3e6','#9ebcda','#8c96c6','#8c6bb1','#88419d','#810f7c','#4d004b', '#320044'), 
+          domain = us_map$abortion_rate)
+
+m1 <- leaflet(width = "100%", us_map, options = leafletOptions(minZoom = 3)) %>%
+        setView(lng = -96, lat = 38, zoom = 4) %>%
+        addProviderTiles("Stamen.TonerBackground") 
+
+m2 <- m1 %>%
+         addPolygons(
+             stroke = FALSE, opacity = 1, fillOpacity = 0.7,
+             color = ~pal2(us_map$abortion_rate))
+
+
+#m2
+  
+labels <- sprintf(
+  "<strong>State: %s</strong><br/>Abortion rate: %g <br/>Abortions prohibited after %s <br/>Licensed physician required? %s",
+  us_map$NAME, us_map$abortion_rate, us_map$prohibited_after, us_map$licensed_physician) %>% lapply(htmltools::HTML)
+
+
+m4 <- m1 %>%
+        addPolygons(
+            fillColor = ~pal2(us_map$abortion_rate), weight = 2,
+            opacity = 1, color = "white", dashArray = "3", fillOpacity = 0.7,
+            highlight = highlightOptions(
+              weight = 5,
+              color = "#666",
+              dashArray = "",
+              fillOpacity = 0.7,
+              bringToFront = TRUE),
+  label = labels,
+  labelOptions = labelOptions(
+    style = list("font-weight" = "normal", padding = "3px 8px"),
+    textsize = "15px",
+    direction = "auto")) %>%
+        addLegend(pal = pal2,
+                values = ~us_map$abortion_rate,
+                title = "Abortion Rate in 2014<br>(abortions per 1,000 <br>women aged 15-44)",
+                "bottomright")
+m4
+```
+
+```{r}
+      m4 <- m1 %>%
+        addPolygons(
+          stroke = FALSE, fillColor = ~pal2(us_map$abortion_rate), weight = 2,
+          opacity = 1, color = "white", dashArray = "3", fillOpacity = 0.7,
+          highlight = highlightOptions (
+            weight = 5,
+            color = "#666",
+            dashArray = "",
+            fillOpacity = 0.7,
+            bringToFront = TRUE),
+          label = labels,
+          labelOptions = labelOptions(
+            style = list("font-weight" = "normal", padding = "3px 8px"),
+            textsize = "15px",
+            direction = "auto")) %>%
+        addLegend(pal = pal2,
+                  values = ~us_map$abortion_rate,
+                  title = "Abortion Rate in 2014<br>(abortions per 1,000 <br>women aged 15-44)",
+                  "bottomright")
+
+m4
+```
+
+
+```{r}
+
+pal2 <- colorNumeric(
+          palette = c( '#E6EDF2','#e0ecf4','#bfd3e6','#9ebcda','#8c96c6','#8c6bb1','#88419d','#810f7c','#4d004b', '#320044'), 
+          domain = us_map$abortion_rate)
+
+    leaflet(width = "100%", us_map, options = leafletOptions(minZoom = 3)) %>%
+      setView(lng = -96, lat = 38, zoom = 4) %>%
+      addProviderTiles("Stamen.TonerBackground") %>%
+      addPolygons(
+        stroke = FALSE, opacity = 1,
+        color = ~pal2(us_map$abortion_rate), weight = 2,
+        dashArray = "3",
+        highlight = highlightOptions(
+          weight = 5,
+          color = "#666",
+          dashArray = "",
+          fillOpacity = 1,
+          bringToFront = TRUE),
+        label = labels,
+        labelOptions = labelOptions(
+          style = list("font-weight" = "normal", padding = "3px 8px"),
+          textsize = "15px",
+          direction = "auto")) %>%
+      addLegend(pal = pal2,
+                values = ~us_map$abortion_rate,
+                title = "Abortion Rate in 2014<br>(abortions per 1,000 <br>women aged 15-44)",
+                "bottomright")
+```
+
+
+```{r}
+save(abortion_time, file = "./data/abortion_time.RData")
+
+save(state_laws, file = "./data/state_laws.RData")
+
+save(us_map, file = "./data/us_map.RData")
+```
+
+
+```{r, evaluate=FALSE}
+# Format popup data for leaflet map.
+# popup_abortion <- paste0("<strong>State: </strong>", 
+#                     us_map$NAME, 
+#                     "<br><strong>Abortion Rate: </strong>", 
+#                     us_map$)
+
+library(leaflet)
+library(shiny)
+
+ui.r
+leafletOutput()
+
+server.r
+renderLeaflet()
+
+shinyServer(function(input, output, session){
+  output$mymap <- renderLeaflet({
+    leaflet() %>%
+      addTiles() %>%
+      setView(lng = xx, lat = xx, popup = "sfsl")
+  })
+})
+
+leafletOutput()
+pal <- colorQuantile("YlOrRd", NULL, n = 4)
+
+# Render final map in leaflet.
+leaflet(data = us_map) %>% addTiles() %>%
+    addPolygons(fillColor = ~pal(`Prohibited except in cases of life or health endangerment if at week`), 
+                fillOpacity = 0.8, 
+                color = "#BDBDC3", 
+                weight = 1)
+# ,
+#                 popup = popup_dat)
+
+firemap <- leaflet(fires) %>% 
+     addTiles() %>%
+     setView(lng = -74, lat = 40.7, zoom = 10 )
+
+leaflet(fires) %>% 
+  addTiles() %>% 
+  addCircles(col = "darkorange", popup = content) %>% 
+  setView(lng = -74, lat = 40.7, zoom = 10 ) %>%
+  addProviderTiles("CartoDB.Positron")
+```
+

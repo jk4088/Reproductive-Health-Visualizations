@@ -1,0 +1,13 @@
+name: docs
+title: docs
+username:
+account: danakraushar
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 334386
+bundleId: 1348088
+url: https://danakraushar.shinyapps.io/docs/
+when: 1525122722.18344
+asMultiple: FALSE
+asStatic: FALSE
+ignoredFiles: app-Dana-leaflet-430.R|visualizations/Beiers.Rmd|visualizations/Kraushar.Rmd|visualizations/Smith.Rmd
